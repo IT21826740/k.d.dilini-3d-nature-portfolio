@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { WorldInteractable, WORLD_INTERACTABLES } from '../../data/worldData';
 import { walkAudio } from '../../utils/walkAudio';
+import { SampledAtmosphere, formatHourLabel } from '../../utils/dayNightCycle';
+import { getPhaseIcon } from './DayNightOverlay';
 
 interface WorldHUDProps {
   nearbyPoi: WorldInteractable | null;
@@ -23,6 +25,9 @@ interface WorldHUDProps {
   onToggleMute: () => void;
   showTouchControls: boolean;
   onToggleTouchControls: () => void;
+  atmosphere: SampledAtmosphere;
+  isSkyPanelOpen: boolean;
+  onToggleSkyPanel: () => void;
 }
 
 export const WorldHUD: React.FC<WorldHUDProps> = ({
@@ -35,6 +40,9 @@ export const WorldHUD: React.FC<WorldHUDProps> = ({
   onToggleMute,
   showTouchControls,
   onToggleTouchControls,
+  atmosphere,
+  isSkyPanelOpen,
+  onToggleSkyPanel,
 }) => {
   const [dockCollapsed, setDockCollapsed] = useState(false);
 
@@ -141,25 +149,43 @@ export const WorldHUD: React.FC<WorldHUDProps> = ({
           </div>
         )}
 
-        {/* Collapsible Bottom Dock */}
+        {/* Collapsible Bottom Dock + Day/Night Sky Toggle */}
         <div className="pointer-events-auto flex flex-col items-center w-full max-w-4xl">
-          <button
-            type="button"
-            onClick={() => setDockCollapsed((v) => !v)}
-            className="mb-1 inline-flex items-center gap-1.5 px-3 py-1 rounded-t-xl bg-[#09130f]/92 border border-b-0 border-emerald-500/30 text-[11px] font-medium text-emerald-300/90 hover:text-emerald-100 transition-colors cursor-pointer"
-          >
-            {dockCollapsed ? (
-              <>
-                <ChevronUp className="w-3.5 h-3.5" />
-                <span>Show Landmarks</span>
-              </>
-            ) : (
-              <>
-                <ChevronDown className="w-3.5 h-3.5" />
-                <span>Hide Dock</span>
-              </>
-            )}
-          </button>
+          <div className="mb-1 flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setDockCollapsed((v) => !v)}
+              className="min-h-[36px] inline-flex items-center gap-1.5 px-3 py-1 rounded-t-xl bg-[#09130f]/92 border border-b-0 border-emerald-500/30 text-[11px] font-medium text-emerald-300/90 hover:text-emerald-100 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              {dockCollapsed ? (
+                <>
+                  <ChevronUp className="w-3.5 h-3.5 shrink-0" />
+                  <span>Show Landmarks</span>
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+                  <span>Hide Dock</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={onToggleSkyPanel}
+              aria-expanded={isSkyPanelOpen}
+              title="Day & Night Cycle Atmosphere"
+              className={`min-h-[36px] inline-flex items-center gap-1.5 px-3 py-1 rounded-t-xl border border-b-0 text-[11px] font-medium transition-colors cursor-pointer whitespace-nowrap tabular-nums ${
+                isSkyPanelOpen
+                  ? 'bg-emerald-500/25 border-emerald-400/60 text-emerald-100'
+                  : 'bg-[#09130f]/92 border-emerald-500/30 text-amber-200/90 hover:text-amber-100'
+              }`}
+            >
+              {getPhaseIcon(atmosphere.phase, 'w-3.5 h-3.5 shrink-0 text-amber-300')}
+              <span className="font-mono">{formatHourLabel(atmosphere.hour)}</span>
+              <span className="hidden sm:inline text-emerald-200/80">· {atmosphere.phaseLabel}</span>
+            </button>
+          </div>
 
           {!dockCollapsed && (
             <div className="w-full flex flex-col lg:flex-row items-center justify-between gap-2 p-1.5 rounded-2xl bg-[#09130f]/92 border border-emerald-500/30 shadow-xl">

@@ -16,9 +16,16 @@ import {
   SanctuaryErrorKind,
 } from './components/world/CuteErrorScreen';
 import { TouchGuideModal } from './components/world/TouchGuideModal';
+import { DayNightOverlay } from './components/world/DayNightOverlay';
 import { WorldInteractable } from './data/worldData';
 import { Project } from './data/portfolioData';
 import { walkAudio } from './utils/walkAudio';
+import {
+  CycleMode,
+  PRESET_HOURS,
+  getLocalHourDecimal,
+  sampleAtmosphere,
+} from './utils/dayNightCycle';
 
 function detectTouchCapable(): boolean {
   if (typeof window === 'undefined') return false;
@@ -51,11 +58,37 @@ export default function App() {
   } | null>(null);
   const [sceneMountKey, setSceneMountKey] = useState(0);
 
+  // Day/Night Cycle synced to user's local time by default
+  const [cycleMode, setCycleMode] = useState<CycleMode>('auto');
+  const [localHour, setLocalHour] = useState<number>(() => getLocalHourDecimal());
+  const [customHour, setCustomHour] = useState<number>(() => getLocalHourDecimal());
+  const [isSkyPanelOpen, setIsSkyPanelOpen] = useState(false);
+
+  const effectiveHour =
+    cycleMode === 'auto'
+      ? localHour
+      : cycleMode === 'custom'
+      ? customHour
+      : PRESET_HOURS[cycleMode];
+  const atmosphere = sampleAtmosphere(effectiveHour);
+
   // Commands & Refs shared with Three.js scene
   const [teleportCommand, setTeleportCommand] = useState<TeleportCommand | null>(null);
   const [cameraAction, setCameraAction] = useState<CameraActionCommand | null>(null);
   const joystickRef = useRef<JoystickVector>({ x: 0, y: 0 });
+  const atmosphereRef = useRef(atmosphere);
+  atmosphereRef.current = atmosphere;
   const commandNonceRef = useRef(0);
+
+  // Refresh local clock every 15s when synced to local time
+  useEffect(() => {
+    if (cycleMode !== 'auto') return;
+    setLocalHour(getLocalHourDecimal());
+    const timer = window.setInterval(() => {
+      setLocalHour(getLocalHourDecimal());
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [cycleMode]);
 
   // Keep touch-device detection updated if user resizes or detaches tablet keyboard
   useEffect(() => {
@@ -157,16 +190,37 @@ export default function App() {
             teleportCommand={teleportCommand}
             cameraAction={cameraAction}
             joystickRef={joystickRef}
+            atmosphereRef={atmosphereRef}
             onLoadProgress={handleLoadProgress}
             onSceneReady={handleSceneReady}
             onSceneError={handleSceneError}
           />
         </div>
 
+        {/* Dynamic Day/Night Atmosphere Tint & Time Scrubber Overlay */}
+        <DayNightOverlay
+          atmosphere={atmosphere}
+          mode={cycleMode}
+          isPanelOpen={isSkyPanelOpen && !isAnyModalOpen && !sceneError && isSceneReady}
+          onClosePanel={() => setIsSkyPanelOpen(false)}
+          onSelectMode={(nextMode) => {
+            setCycleMode(nextMode);
+            if (nextMode === 'auto') {
+              setLocalHour(getLocalHourDecimal());
+            } else if (nextMode !== 'custom') {
+              setCustomHour(PRESET_HOURS[nextMode]);
+            }
+          }}
+          onScrubHour={(hour) => {
+            setCycleMode('custom');
+            setCustomHour(hour);
+          }}
+        />
+
         {/* Subtle Atmospheric Vignette */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 bg-radial from-transparent via-[#09120e]/15 to-[#09120e]/75 pointer-events-none z-10"
+          className="absolute inset-0 bg-radial from-transparent via-transparent to-[#09120e]/45 pointer-events-none z-10"
         />
 
         {/* Responsive Heads-Up Display */}
@@ -180,6 +234,9 @@ export default function App() {
           onToggleMute={handleToggleMute}
           showTouchControls={showTouchControls}
           onToggleTouchControls={() => setShowTouchControls((v) => !v)}
+          atmosphere={atmosphere}
+          isSkyPanelOpen={isSkyPanelOpen}
+          onToggleSkyPanel={() => setIsSkyPanelOpen((v) => !v)}
         />
 
         {/* Mobile / Touch Virtual Analog Joystick & Camera Zoom Controls */}
